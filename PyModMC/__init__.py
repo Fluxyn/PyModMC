@@ -1,1 +1,1 @@
-from main import Mod
+from .main import Mod

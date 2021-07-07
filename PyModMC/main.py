@@ -15,7 +15,8 @@ from io import BytesIO
 from timeit import default_timer
 from zipfile import ZipFile
 
-minecraft_locale_code = 'en_us'
+LOCALE_CODE = 'en_us'
+DEBUG = False
 
 def generate_mod(maven_group, modid, mod_name, description, mod_version, minecraft_version, directory, authors, website):
     minecraft_versions = json.loads(urllib.request.urlopen('https://meta.fabricmc.net/v2/versions/game').read())
@@ -112,8 +113,9 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
     json_config['authors'] = authors 
     json_config['contact']['homepage'] = website
     json_config['contact']['sources'] = ''
-    json_config['license'] = ''
+    json_config['license'] = '' #TODO: Add support for licences.
     json_config['icon'] = 'assets/' + modid + '/icon.png'
+    #TODO: Add support for mixins.
     #json_config['mixins'] = [modid + '.mixins.json']
     json_config['mixins'] = []
     json_config['entrypoints']['main'] = [maven_group + '.' + mod_name.title().replace(' ', '')]
@@ -156,7 +158,7 @@ def edit_mod(directory, java, lang, models, textures):
     if not os.path.isdir(os.path.join(assets_dir, 'lang')):
         os.mkdir(os.path.join(assets_dir, 'lang'))
 
-    lang_file = open(os.path.join(assets_dir, 'lang', minecraft_locale_code + '.json'), 'w')
+    lang_file = open(os.path.join(assets_dir, 'lang', LOCALE_CODE + '.json'), 'w')
     json.dump(lang, lang_file, indent=4, sort_keys=True)
     lang_file.close()
 
@@ -172,13 +174,13 @@ def edit_mod(directory, java, lang, models, textures):
     for texture in textures[0]:
         shutil.copy(texture, os.path.join(assets_dir, 'textures', 'item', name + '.png'))
         
-def run_cmd(command, directory=None, debug=False):
+def run_cmd(command, directory=None):
     process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, cwd=directory)
     error_list = []
     while True:
         error = process.stderr.readline()
 
-        if debug:
+        if DEBUG:
             print(error.decode(), end='')
 
         if error:
@@ -195,6 +197,17 @@ def run_cmd(command, directory=None, debug=False):
         sys.exit()
         
 class Mod:
+    '''A class to represent a mod.
+
+    Args:
+        mod_name (str): Name of the mod.
+        mod_version (str): Version number of the mod.
+        description (str): Description of the mod.
+        minecraft_version (str): Minecraft version of the mod.
+        authors (list): List of the mod's authors.
+        website (str, optional): Website of the mod, defaults to None.
+        directory (str, optional): Path for the mod folder, defaults to ~/Desktop.
+    '''
     def __init__(self, mod_name, mod_version, description, minecraft_version, authors, website='', directory=os.path.expanduser('~/Desktop')):
         self.mod_name = mod_name
         self.description = description
@@ -226,7 +239,11 @@ class Mod:
         else:
             self.maven_group = (re.sub('[^a-zA-Z0-9_]', '', authors[0]) + '.' + re.sub('[^a-zA-Z0-9_ ]', '', mod_name).replace(' ', '.')).lower()
             
-    def save(self): # temporary function, replace in future.
+    def save(self):
+        '''Saves the mod data into the mod folder.'''
+        
+        timer_start = default_timer()
+        
         newline = '\n'
         tab = '\t'
         
@@ -255,8 +272,13 @@ public class {self.entrypoint} implements ModInitializer {{
 
         print('Mod saved.')
         
+        timer_end = default_timer()
+        elapsed_time = timer_end - timer_start
+        time_string = f'{int(divmod(elapsed_time, 60)[0])}m {int(divmod(elapsed_time, 60)[1])}s {int(round(divmod(elapsed_time, 60)[1], 3) % 1 * 1000)}ms'
+        print('Finished in ' + time_string)
+        
     def run(self):
-
+        '''Runs the Minecraft client.'''
         self.save()
 
         print('Launching Minecraft client...')
@@ -268,12 +290,21 @@ public class {self.entrypoint} implements ModInitializer {{
         else:
             command = 'gradlew runClient'
 
-        run_cmd(command, self.mod_folder, debug=True) # debug just for testing
+        run_cmd(command, self.mod_folder)
 
     def Item(self, name, itemgroup='misc', image=None):
-        #item groups: brewing, building blocks, combat. decorations, food, materials, misc, redstone, tools, transportation
+        '''Creates an item.
 
-        #TODO: Improve texture finding code.
+        Args:
+            name (str): Name of the item.
+            itemgroup (str, optional): The item's category, used for creative tabs - one
+            of the following: brewing, building blocks, combat, decorations,
+            food, materials, misc, redstone, tools or transportation. Defaults
+            to misc.
+            image (str, optional): Path to the item's image. If no path is
+            specified, it will look in the working directory for an image.
+        '''
+
         texture = glob.glob('**/' + name.lower().replace(' ', '_') + '.png', recursive=True)
         
         if image:
@@ -294,11 +325,42 @@ public class {self.entrypoint} implements ModInitializer {{
         self.registry.append(f'Registry.register(Registry.ITEM, new Identifier("{self.modid}", "{name.lower().replace(" ", "_")}"), {name.upper().replace(" ", "_")});')
         
         self.lang[f'item.{self.modid}.{name.lower().replace(" ", "_")}'] = name
-'''
-timer_start = default_timer()
 
-timer_end = default_timer()
-elapsed_time = timer_end - timer_start
-time_string = f'{int(divmod(elapsed_time, 60)[0])}m {int(divmod(elapsed_time, 60)[1])}s {int(round(divmod(elapsed_time, 60)[1], 3) % 1 * 1000)}ms'
-print('Finished in ' + time_string
-'''
+    def FoodItem(self, name, hunger, saturation, itemgroup='food', image=None):
+        '''Creates an item.
+
+        Args:
+            name (str): Name of the item.
+            hunger (int): Amount of hunger points your item fills. Each hunger
+            point is half a hunger shank. 
+            saturation (float): Saturation modifier for the item. The saturation
+            modifier is equvalent to saturation restored / hunger points * 0.5.
+            itemgroup (str, optional): The item's category, used for creative
+            tabs - one of the following: brewing, building blocks, combat,
+            decorations, food, materials, misc, redstone, tools or
+            transportation. Defaults to misc.
+            image (str, optional): Path to the item's image. If no path is
+            specified, it will look in the working directory for an image.
+        '''
+        texture = glob.glob('**/' + name.lower().replace(' ', '_') + '.png', recursive=True)
+        
+        if image:
+            texture_file = image
+        elif texture:
+            texture_file = os.path.join(os.getcwd(), texture[0])
+        else:
+            print('Error: Could not find a texture for \'' + name + '\'')
+            sys.exit()
+
+        self.item_models[name.lower().replace(' ', '_')] = {'parent': 'minecraft:item/generated', 'textures': {'layer0': f'{self.modid}:item/{name.lower().replace(" ", "_")}'}}
+
+        self.item_textures.append(texture_file)
+        
+        self.definitions.append(f'public static final Item {name.upper().replace(" ", "_")} = new Item.Settings().group(ItemGroup.{itemgroup.upper().replace(" ", "_")}).food(new FoodComponent.Builder().hunger({hunger}).saturationModifier({saturation}f).build())')
+        self.imports.add('net.minecraft.item.Item')
+        self.imports.add('net.minecraft.item.ItemGroup')
+        self.imports.add('net.minecraft.item.FoodComponent')
+
+        self.registry.append(f'Registry.register(Registry.ITEM, new Identifier("{self.modid}", "{name.lower().replace(" ", "_")}"), {name.upper().replace(" ", "_")});')
+        
+        self.lang[f'item.{self.modid}.{name.lower().replace(" ", "_")}'] = name
