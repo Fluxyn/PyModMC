@@ -1,6 +1,7 @@
 import datetime
 import glob
 import json
+import logging
 import os
 import re
 import shutil
@@ -16,7 +17,24 @@ from timeit import default_timer
 from zipfile import ZipFile
 
 LOCALE_CODE = 'en_us'
-DEBUG = False
+
+# Makes logs correctly colored in IDLE, PyCharm and other IDEs.
+# Adapted from different answers from stackoverflow.com/questions/1383254
+class LogFilter(logging.Filter):
+    def __init__(self, level):
+        self.level = level
+
+    def filter(self, record):
+        return record.levelno < self.level
+
+logger = logging.getLogger()
+
+info_handler = logging.StreamHandler(sys.stdout)
+info_handler.addFilter(LogFilter(logging.WARNING))
+error_handler = logging.StreamHandler(sys.stderr)
+error_handler.setLevel(logging.WARNING)
+
+logging.basicConfig(format='[%(levelname)s] %(message)s', handlers=[info_handler, error_handler], level=logging.INFO)
 
 def generate_mod(maven_group, modid, mod_name, description, mod_version, minecraft_version, directory, authors, website):
     minecraft_versions = json.loads(urllib.request.urlopen('https://meta.fabricmc.net/v2/versions/game').read())
@@ -29,7 +47,7 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
         fabric_minecraft_versions = {}
 
     if not minecraft_versions[1]['version'] in fabric_minecraft_versions:
-        print('Collecting fabric versions...')
+        logger.info('Collecting fabric versions...')
         modrinth_versions = json.loads(urllib.request.urlopen('https://api.modrinth.com/api/v1/mod/P7dR8mSH').read())['versions']
 
         fabric_minecraft_versions = {}
@@ -56,7 +74,7 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
 
     os.chdir(directory)
 
-    print('Cloning example mod...')
+    logger.info('Cloning example mod...')
 
     if minecraft_version in minecraft_version_list[:minecraft_version_list.index('1.16.5')]:
         template_link = 'https://github.com/FabricMC/fabric-example-mod/archive/1.17.zip'
@@ -73,7 +91,7 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
     os.remove(os.path.join(mod_name, 'README.md'))
     shutil.rmtree(os.path.join(mod_name, '.github'))
 
-    print('Configuring mod...')
+    logger.info('Configuring mod...')
 
     properties = json.loads(urllib.request.urlopen(f'https://meta.fabricmc.net/v1/versions/loader/{minecraft_version}').read())
 
@@ -113,9 +131,9 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
     json_config['authors'] = authors 
     json_config['contact']['homepage'] = website
     json_config['contact']['sources'] = ''
-    json_config['license'] = '' #TODO: Add support for licences.
+    json_config['license'] = '' # TODO: Add support for licences.
     json_config['icon'] = 'assets/' + modid + '/icon.png'
-    #TODO: Add support for mixins.
+    # TODO: Add support for mixins.
     #json_config['mixins'] = [modid + '.mixins.json']
     json_config['mixins'] = []
     json_config['entrypoints']['main'] = [maven_group + '.' + mod_name.title().replace(' ', '')]
@@ -131,7 +149,7 @@ def generate_mod(maven_group, modid, mod_name, description, mod_version, minecra
     assets = os.path.join('src', 'main', 'resources', 'assets', modid)
     os.makedirs(assets)
 
-    #TODO: Add default mod icon with link below.
+    # TODO: Add default mod icon with link below.
     'https://github.com/FabricMC/fabric-example-mod/raw/master/src/main/resources/assets/modid/icon.png'
 
     data_file = open('data.txt', 'w')
@@ -142,7 +160,7 @@ main entrypoint: {os.path.join('src', 'main', 'java', *maven_group.split('.'), m
 assets: {assets}''')
     data_file.close()
 
-    print('Successfully generated mod!')
+    logger.info('Successfully generated mod!')
 
 def edit_mod(directory, java, lang, models, textures):
     os.chdir(directory)
@@ -158,6 +176,7 @@ def edit_mod(directory, java, lang, models, textures):
     if not os.path.isdir(os.path.join(assets_dir, 'lang')):
         os.mkdir(os.path.join(assets_dir, 'lang'))
 
+    # TODO: Add support for item translations
     lang_file = open(os.path.join(assets_dir, 'lang', LOCALE_CODE + '.json'), 'w')
     json.dump(lang, lang_file, indent=4, sort_keys=True)
     lang_file.close()
@@ -165,7 +184,7 @@ def edit_mod(directory, java, lang, models, textures):
     os.makedirs(os.path.join(assets_dir, 'models', 'item'), exist_ok=True)
     os.makedirs(os.path.join(assets_dir, 'textures', 'item'), exist_ok=True)
 
-    #TODO: Add support for block textures when the block is function added.
+    # TODO: Add support for block textures when the block is function added.
     for name, model in models[0].items():
         model_file = open(os.path.join(assets_dir, 'models', 'item', name + '.json'), 'w')
         json.dump(model, model_file, indent=4, sort_keys=True)
@@ -175,13 +194,14 @@ def edit_mod(directory, java, lang, models, textures):
         shutil.copy(texture, os.path.join(assets_dir, 'textures', 'item', name + '.png'))
         
 def run_cmd(command, directory=None):
+    '''Used as an internal function to run and log shell commands.'''
     process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, cwd=directory)
     error_list = []
     while True:
         error = process.stderr.readline()
 
-        if DEBUG:
-            print(error.decode(), end='')
+        if len(error) > 1:
+            logger.debug(error.decode()[:-1])
 
         if error:
             error_list.append(error.decode())
@@ -191,9 +211,9 @@ def run_cmd(command, directory=None):
     if error_list:
         for error in error_list:
             if error.startswith('Caused by'):
-                print('Error: ' + error[11:])
+                logger.error(error[11:])
             elif error == error_list[-1]:
-                print('Error: ' + [re.sub('^[> ]+|\n', '', i) for i in error_list if '>' in i][-1])
+                logger.error([re.sub('^[> ]+|\n', '', i) for i in error_list if '>' in i][-1])
         sys.exit()
         
 class Mod:
@@ -262,26 +282,23 @@ public class {self.entrypoint} implements ModInitializer {{
 
 }}'''
         if os.path.isdir(self.mod_folder):
-            print('Found existing mod.')
+            logger.info('Found existing mod folder.')
+            edit_mod(self.mod_folder, java, self.lang, [self.item_models, self.block_models], [self.item_textures, self.block_textures])
         else:
             generate_mod(self.maven_group, self.modid, self.mod_name,
                          self.description, self.mod_version, self.minecraft_version,
                          self.directory, self.authors, self.website)
-
-        edit_mod(self.mod_folder, java, self.lang, [self.item_models, self.block_models], [self.item_textures, self.block_textures])
-
-        print('Mod saved.')
         
-        timer_end = default_timer()
-        elapsed_time = timer_end - timer_start
-        time_string = f'{int(divmod(elapsed_time, 60)[0])}m {int(divmod(elapsed_time, 60)[1])}s {int(round(divmod(elapsed_time, 60)[1], 3) % 1 * 1000)}ms'
-        print('Finished in ' + time_string)
+            timer_end = default_timer()
+            elapsed_time = timer_end - timer_start
+            time_string = f'{int(divmod(elapsed_time, 60)[0])}m {int(divmod(elapsed_time, 60)[1])}s {int(round(divmod(elapsed_time, 60)[1], 3) % 1 * 1000)}ms'
+            logger.info('Finished saving mod in ' + time_string)
         
     def run(self):
         '''Runs the Minecraft client.'''
         self.save()
 
-        print('Launching Minecraft client...')
+        logger.info('Launching Minecraft client...')
 
         if os.name == 'posix':
             run_cmd('chmod +x gradlew', self.mod_folder)
@@ -292,15 +309,50 @@ public class {self.entrypoint} implements ModInitializer {{
 
         run_cmd(command, self.mod_folder)
 
+    def build(self, directory=os.getcwd()):
+        '''Exports the mod as a jar file.
+
+        Args:
+            directory (str): The directory where the jar file is exported to.
+            Defualts to the current working directory.
+            
+        '''
+        timer_start = default_timer()
+        
+        self.save()
+
+        logger.info('Building your mod...')
+
+        if os.name == 'posix':
+            run_cmd('chmod +x gradlew', self.mod_folder)
+            run_cmd('./gradlew wrapper', self.mod_folder)
+            command = './gradlew build'
+        else:
+            command = 'gradlew build'
+
+        run_cmd(command, self.mod_folder)
+
+        jar_file = os.path.join(self.mod_folder, 'build', 'libs',
+            self.modid + '-' + self.mod_version + '.jar')
+
+        shutil.copyfile(jar_file, directory)
+
+        timer_end = default_timer()
+        elapsed_time = timer_end - timer_start
+        time_string = f'{int(divmod(elapsed_time, 60)[0])}m {int(divmod(elapsed_time, 60)[1])}s {int(round(divmod(elapsed_time, 60)[1], 3) % 1 * 1000)}ms'
+        logger.info('Finished building in ' + time_string)
+
     def Item(self, name, itemgroup='misc', image=None):
         '''Creates an item.
 
         Args:
             name (str): Name of the item.
+
             itemgroup (str, optional): The item's category, used for creative tabs - one
             of the following: brewing, building blocks, combat, decorations,
             food, materials, misc, redstone, tools or transportation. Defaults
             to misc.
+
             image (str, optional): Path to the item's image. If no path is
             specified, it will look in the working directory for an image.
         '''
@@ -312,7 +364,7 @@ public class {self.entrypoint} implements ModInitializer {{
         elif texture:
             texture_file = os.path.join(os.getcwd(), texture[0])
         else:
-            print('Error: Could not find a texture for \'' + name + '\'')
+            logger.error('Could not find a texture for \'' + name + '\'')
             sys.exit()
 
         self.item_models[name.lower().replace(' ', '_')] = {'parent': 'minecraft:item/generated', 'textures': {'layer0': f'{self.modid}:item/{name.lower().replace(" ", "_")}'}}
@@ -331,14 +383,18 @@ public class {self.entrypoint} implements ModInitializer {{
 
         Args:
             name (str): Name of the item.
+            
             hunger (int): Amount of hunger points your item fills. Each hunger
-            point is half a hunger shank. 
+            point is half a hunger shank.
+            
             saturation (float): Saturation modifier for the item. The saturation
             modifier is equvalent to saturation restored / hunger points * 0.5.
+
             itemgroup (str, optional): The item's category, used for creative
             tabs - one of the following: brewing, building blocks, combat,
             decorations, food, materials, misc, redstone, tools or
             transportation. Defaults to misc.
+            
             image (str, optional): Path to the item's image. If no path is
             specified, it will look in the working directory for an image.
         '''
@@ -349,7 +405,7 @@ public class {self.entrypoint} implements ModInitializer {{
         elif texture:
             texture_file = os.path.join(os.getcwd(), texture[0])
         else:
-            print('Error: Could not find a texture for \'' + name + '\'')
+            logger.error('Could not find a texture for \'' + name + '\'')
             sys.exit()
 
         self.item_models[name.lower().replace(' ', '_')] = {'parent': 'minecraft:item/generated', 'textures': {'layer0': f'{self.modid}:item/{name.lower().replace(" ", "_")}'}}
