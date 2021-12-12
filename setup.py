@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='PyModMC',
-    version='0.1.2-alpha',
+    version='0.2.2-alpha',
     author='Fluxyn',
     description='A Minecraft modding library made for Python.',
     url='https://github.com/Fluxyn/PyModMC',

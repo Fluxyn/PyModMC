@@ -1,9 +1,18 @@
 # Changelog
-This file will document the changes of PyModMC.
+This file documents the changes of PyModMC.
+
+## [Alpha 0.2.2](https://pypi.org/project/PyModMC/0.2.2a0/) - 12/12/2021
+ - Only generates Gradle wrapper and gives executable permissions to `gradlew` when the mod is first made, instead of every time Gradle is used.
+ - Switched from running `chmod` command to using `os.chmod`.
+ - Added automatic detection of locale code.
+ - Changed the default mod directory from the desktop to the current working directory.
+ - Added `LOCALE_CODE` and `logger` to `__init__.py`.
+ - Added retry if rate-limited by the Modrinth API.
+ - Added handling the fact that some unstable Minecraft versions are not recorded in Fabric's Modrinth Page.
 
 ## [Alpha 0.1.2](https://pypi.org/project/PyModMC/0.1.2a0/) - 9/4/2021
  - Added `Build` function to `Mod` class. Exports the mod as a jar file.
- - Added compatibility with the logging module. 
+ - Added compatibility with the logging module.
 
 ## [Alpha 0.0.2](https://pypi.org/project/PyModMC/0.0.2a0/) - 7/6/2021
  - Added `FoodItem` function to `Mod` class.
