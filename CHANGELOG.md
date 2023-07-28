@@ -1,6 +1,17 @@
 # Changelog
 This file documents the changes of PyModMC.
 
+## [Alpha 1.2.2](https://pypi.org/project/PyModMC/1.2.2a0/) - 7/28/2023
+ - Migrated to Modrinth API v2.
+ - Fixed extra tab characters on the saving mod timer.
+ - Added the use of Github API to find the most recent template branch to download.
+ - Changed docstring format from Google to PEP 257.
+ - Changed `Item` and `FoodItem` to classes.
+ - Updated the error logging system.
+ - Changed how locales are detected to work on Windows.
+ - Added `change_locale` function.
+ - Updated Java code to newer versions of Fabric API.
+
 ## [Alpha 0.2.2](https://pypi.org/project/PyModMC/0.2.2a0/) - 12/12/2021
  - Only generates Gradle wrapper and gives executable permissions to `gradlew` when the mod is first made, instead of every time Gradle is used.
  - Switched from running `chmod` command to using `os.chmod`.
