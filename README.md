@@ -19,6 +19,12 @@ test_mod.run()
 
 In order to make Minecraft mods, you need a Java Development Kit. Run the `javac` command to see if you already have one. If not, you can get one [here](https://adoptium.net/releases.html). Make sure to enable 'Set JAVA_HOME variable' and restart your computer after installation.
 
+If build fails, be sure to have an appropriate Java version according to your Minecraft version, for > 1.17 you will need Java 17, for older versions use Java 11.
+You can get the installed Java version with this command.
+```
+$ java -version
+```
+
 # Installation
 Install PyModMC with [pip](https://pypi.org/):
 ```
@@ -42,7 +48,7 @@ The `Mod` class represents a Minecraft mod. Upon initializing, it will copy the 
     ```
  - The `build` function Saves and exports your mod as a .jar file.
     ```python
-    mod.export()
+    mod.build()
     ```
 ## Object classes
 Object classes represent any object you can mod into Minecraft such as items and blocks. In the future, these classes will have shared event and Java scripting functions, making it easy to add custom behavior to any item or block you add.
